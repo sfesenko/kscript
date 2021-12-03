@@ -70,6 +70,9 @@ val shadowJar by tasks.getting(ShadowJar::class) {
             into(archiveFile.get().asFile.parentFile)
         }
     }
+    manifest {
+        attributes("Main-Class" to "kscript.app.KscriptKt")
+    }
 }
 
 // Disable standard jar task to avoid building non-shadow jars

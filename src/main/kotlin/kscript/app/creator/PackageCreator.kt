@@ -6,6 +6,10 @@ import kscript.app.code.Templates
 import kscript.app.model.Script
 import kscript.app.util.FileUtils
 import kscript.app.util.Logger.infoMsg
+import java.io.FileOutputStream
+import java.nio.file.Path
+import java.util.jar.JarFile
+import java.util.jar.JarOutputStream
 
 class PackageCreator(private val cache: Cache, private val executor: Executor) {
     /**
@@ -30,5 +34,31 @@ class PackageCreator(private val cache: Cache, private val executor: Executor) {
         projectDir.resolve("build/libs/appName").toFile().setExecutable(true)
 
         infoMsg("Finished packaging '${script.scriptName}'; executable path: ${projectDir}/build/libs/")
+    }
+
+    /**
+     * Merge jar files
+     */
+    fun packageKscript(script: Script, scriptJar: JarArtifact, resolvedDependencies: Set<Path>) {
+        val artifactName = "${script.scriptName}.jar"
+        infoMsg("Packaging script '$artifactName' into standalone executable...")
+        JarOutputStream(FileOutputStream(artifactName)).use { outJarFile ->
+            val entries = mutableSetOf<String>()
+            fun append(jarPath: Path, allowManifest: Boolean = false) =
+                JarFile(jarPath.toFile()).use { jar ->
+                    jar.versionedStream()
+                        .filter { !it.name.startsWith("META-INF/") || allowManifest }
+                        .filter { it.name !in entries }
+                        .forEach { jarEntry ->
+                            entries += jarEntry.name
+                            outJarFile.putNextEntry(jarEntry)
+                            jar.getInputStream(jarEntry).copyTo(outJarFile)
+                        }
+                    infoMsg("package $jarPath")
+                }
+            append(scriptJar.path, allowManifest = true)
+            resolvedDependencies.forEach(::append)
+        }
+        infoMsg("Finished packaging '$artifactName'")
     }
 }

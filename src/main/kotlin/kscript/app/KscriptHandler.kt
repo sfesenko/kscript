@@ -6,9 +6,13 @@ import kscript.app.creator.*
 import kscript.app.model.Config
 import kscript.app.model.ScriptType
 import kscript.app.parser.Parser
-import kscript.app.resolver.*
+import kscript.app.resolver.CommandResolver
+import kscript.app.resolver.DependencyResolver
+import kscript.app.resolver.ScriptResolver
+import kscript.app.resolver.SectionResolver
 import kscript.app.util.Logger
 import org.docopt.DocOptWrapper
+import java.nio.file.Paths
 
 class KscriptHandler(private val config: Config, private val docopt: DocOptWrapper) {
 
@@ -69,14 +73,23 @@ class KscriptHandler(private val config: Config, private val docopt: DocOptWrapp
             throw IllegalStateException("@Entry directive is just supported for kt class files")
         }
 
+        val runtimeDependencies = arrayOf("kotlin-script-runtime.jar", "kotlin-stdlib.jar")
+            .map { "${config.kotlinHome}${config.separatorChar}lib${config.separatorChar}$it" }
+            .map(Paths::get)
+            .toSet()
+
         val jar = JarCreator(appDir.cache, executor).create(script, resolvedDependencies)
 
         //if requested try to package the into a standalone binary
         if (docopt.getBoolean("package")) {
-            PackageCreator(appDir.cache, executor).packageKscript(script, jar)
+            PackageCreator(appDir.cache, executor).packageKscript(
+                script,
+                jar,
+                resolvedDependencies + runtimeDependencies
+            )
             return
         }
 
-        executor.executeKotlin(jar, resolvedDependencies, userArgs)
+        executor.executeKotlin(jar, resolvedDependencies + runtimeDependencies, userArgs)
     }
 }
